@@ -13,7 +13,9 @@ from beginner_tutorials.msg import GrideyeRaw
 from beginner_tutorials.msg import NodeBytes
 
 def NodeBytesReceivedFromROSFabric(data, bridge):
-    msg = "{}:{}".format(data.node, binascii.hexlify(data.data))
+    dataAsBytes=bytearray(data.data)
+    msg = "{}:{}".format(data.node, binascii.hexlify(dataAsBytes))
+    print msg
     bridge.sendToSerialPort(msg)
     
 def DataReceivedFromROSFabric(data, bridge):
@@ -125,7 +127,8 @@ class SerialPortROSBridge:
         return node, data, other
         
     def sendToSerialPort(self,msg):
-        msg = self.ser.write(msg)
+        self.ser.write(msg)
+        self.ser.write('\n')
 
     def run(self):
         rate = rospy.Rate(10) # 10hz
