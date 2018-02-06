@@ -19,7 +19,7 @@ def NodeBytesReceived(data,fetch):
 class ImageFetcher:
     def __init__(self, imageId):
         self.imageId = imageId
-        self.fileData = bytearray([0]*9600)
+        self.fileData = bytearray([0]*600)
         self.imageData = array.array('H')
         self.imageData.extend([0]*4800)
         self.pub = rospy.Publisher('byte_commands_to_nodes', NodeBytes, queue_size=10)
@@ -41,7 +41,7 @@ class ImageFetcher:
     def addBlock(self,blockNum, data):
         for i in range(len(data)):
             byteNum = blockNum * self.blockSize + i
-            print "fileData[{}]={}".format(byteNum,data[i])
+#            print "fileData[{}]={}".format(byteNum,data[i])
             self.fileData[byteNum] = data[i]
 
     def minMaxPixel(self):
@@ -55,31 +55,33 @@ class ImageFetcher:
 
         return (minVal,maxVal)
 
-    def writeImageDataToPGM(self):
+    def writeImageDataToPBM(self):
         (minVal, maxVal) = self.minMaxPixel()
         print "minVal={} maxVal={}".format(minVal,maxVal)
         # write as pgm
         nMaxVal = maxVal - minVal
-        f = file('image.pgm', 'w')
-        f.write('P2\n')
-        f.write('# image.pgm\n')
+        filename='/tmp/image{}.pbm'.format(self.imageId)
+        f = file(filename, 'w')
+        f.write('P1\n')
+        f.write('# image.pbm\n')
         f.write('80 60\n')
-        f.write('255\n')
         
         for p in self.imageData:
-            np = (p - minVal) * 255 / nMaxVal
-            f.write(str(np))
+            f.write(str(p))
             f.write('\n')
-
+        f.close()
+        print "Wrote {}".format(filename)
+            
     def copyFileDataToImageData(self):
         for i in range(len(self.imageData)):
-            word = (self.fileData[2*i+1] << 8) | self.fileData[2*i]
-            print "imageData[{}]={}".format(i,word)
-            self.imageData[i] = word
+            bitNum = i % 8
+            byteNum = i / 8
+            if (byteNum & (1 << bitNum)):
+                self.imageData[i] = 1
             
-    def saveCurrentToPGM(self):
+    def saveDetectionToPBM(self):
         self.blockSize = 58
-        self.blockCountPending = 166
+        self.blockCountPending = 11
         self.blockReceived = [False for x in range(self.blockCountPending)]
 
         rate = rospy.Rate(10) # 10hz
@@ -88,7 +90,7 @@ class ImageFetcher:
         pubMsg = NodeBytes()
         pubMsg.node = 5
         # streamid 8, imageid, imagetype (1=current), blocksize 59, range count, range list (start, count), ...
-        pubMsg.data = [8, self.imageId, 1, self.blockSize, 1, 0, self.blockCountPending]
+        pubMsg.data = [8, self.imageId, 3, self.blockSize, 1, 0, self.blockCountPending]
         print "publish"
         self.pub.publish(pubMsg)
         missing = self.missingBlocks()
@@ -113,13 +115,13 @@ class ImageFetcher:
 
         # transfer the filedata to the image data
         self.copyFileDataToImageData()
-        self.writeImageDataToPGM()    
+        self.writeImageDataToPBM()    
             
 if __name__ == '__main__':
     try:
         time.sleep(1)
         fetch = ImageFetcher(int(sys.argv[1]))
-        fetch.saveCurrentToPGM()
+        fetch.saveDetectionToPBM()
         
     except rospy.ROSInterruptException:
         pass
