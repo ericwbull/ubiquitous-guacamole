@@ -155,6 +155,12 @@ class SerialPortROSBridge:
     def doGrideyeRawReturn(self,data):
         datalist = list(data)
         databytecount = len(datalist)
+        if (databytecount % 2 != 0):
+            print "grideyeraw bad message"
+            return
+        if (databytecount < 1):
+            print "grideyeraw bad message"
+            return
         pixelCount = (databytecount - 1) / 2
         start = struct.unpack_from('B', data)[0]
         
