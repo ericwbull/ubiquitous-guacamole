@@ -5,6 +5,7 @@ import rospy
 import binascii
 import array
 from beginner_tutorials.msg import NodeBytes
+
 import sys
 
 def NodeBytesReceived(data,fetch):
@@ -18,7 +19,9 @@ def NodeBytesReceived(data,fetch):
     
 class ImageFetcher:
     def __init__(self, imageId):
-        self.imageId = imageId
+        self.frameNum = imageId
+        self.folderNum = 0
+        self.serialNum = 0
         self.fileData = bytearray([0]*600)
         self.imageData = array.array('H')
         self.imageData.extend([0]*4800)
@@ -45,7 +48,7 @@ class ImageFetcher:
         for i in range(len(data)):
             byteNum = blockNum * self.blockSize + i
 #            print "fileData[{}]={}".format(byteNum,data[i])
-            print "byteNum={}".format(byteNum)
+            print "data[{}]={}".format(byteNum,data[i])
             self.fileData[byteNum] = data[i]
 
     def minMaxPixel(self):
@@ -64,7 +67,7 @@ class ImageFetcher:
         print "minVal={} maxVal={}".format(minVal,maxVal)
         # write as pgm
         nMaxVal = maxVal - minVal
-        filename='/tmp/image{}.pbm'.format(self.imageId)
+        filename='/tmp/image{}.pbm'.format(self.frameNum)
         f = file(filename, 'w')
         f.write('P1\n')
         f.write('# image.pbm\n')
@@ -80,7 +83,7 @@ class ImageFetcher:
         for i in range(len(self.imageData)):
             bitNum = i % 8
             byteNum = i / 8
-            if (byteNum & (1 << bitNum)):
+            if (self.fileData[byteNum] & (1 << bitNum)):
                 self.imageData[i] = 1
             
     def saveDetectionToPBM(self):
@@ -94,7 +97,8 @@ class ImageFetcher:
         pubMsg = NodeBytes()
         pubMsg.node = 5
         # streamid 8, imageid, imagetype (1=current), blocksize 59, range count, range list (start, count), ...
-        pubMsg.data = [8, self.imageId, 3, self.blockSize, 1, 0, self.blockCountPending]
+        #                 collection, frame,           serial  type
+        pubMsg.data = [8, 0,0,        self.frameNum,0,  0,0,    3,    self.blockSize, 1, 0, self.blockCountPending]
         print "publish"
         self.pub.publish(pubMsg)
         missing = self.missingBlocks()

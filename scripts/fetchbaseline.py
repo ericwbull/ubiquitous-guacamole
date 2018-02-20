@@ -60,7 +60,7 @@ class ImageFetcher:
         print "minVal={} maxVal={}".format(minVal,maxVal)
         # write as pgm
         nMaxVal = maxVal - minVal
-        filename='/tmp/image{}.pgm'.format(self.frameNum)
+        filename='/tmp/image{}.baseline.pgm'.format(self.frameNum)
         f = file(filename, 'w')
 	f.write('P2\n')
         f.write('# image.pgm\n')
@@ -91,7 +91,7 @@ class ImageFetcher:
         pubMsg.node = 5
         # streamid 8, imageid, imagetype (1=current), blocksize 59, range count, range list (start, count), ...
         #                 collection, frame,           serial  type
-        pubMsg.data = [8, 0,0,        self.frameNum,0,  0,0,   1,    self.blockSize, 1, 0, self.blockCountPending]
+        pubMsg.data = [8, 0,0,        self.frameNum,0,  0,0,    2,    self.blockSize, 1, 0, self.blockCountPending]
         print "publish"
         self.pub.publish(pubMsg)
         missing = self.missingBlocks()

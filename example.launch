@@ -1,0 +1,4 @@
+<launch>
+	<node name="SerialPortROSBridge" pkg="beginner_tutorials" type="SerialPortROSBridge.py" />
+	<node name="SerialStreamROSBridge" pkg="beginner_tutorials" type="SerialStreamROSBridge.py" />
+</launch>

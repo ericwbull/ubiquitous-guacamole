@@ -13,6 +13,9 @@ from beginner_tutorials.msg import Grideye
 from beginner_tutorials.msg import GrideyeRaw
 from beginner_tutorials.msg import NodeBytes
 
+def ImageIdToString(imageId):
+    return "{}/{}.{}".format(imageId.collectionNumber, imageId.frameNumber, imageId.serialNumber)
+
 def NodeBytesReceivedFromROSFabric(data, bridge):
     dataAsBytes=bytearray(data.data)
     msg = "{}:{}".format(data.node, binascii.hexlify(dataAsBytes))
@@ -75,6 +78,7 @@ class SerialPortROSBridge:
         rospy.Subscriber('commands_to_nodes', String, DataReceivedFromROSFabric, self)
         rospy.Subscriber('byte_commands_to_nodes', NodeBytes, NodeBytesReceivedFromROSFabric, self)
         rospy.init_node('SerialPortROSBridge', anonymous=True)
+        self.threatCount = 0
 
     def readLineFromSerialPort(self):
         msg = ""
@@ -174,26 +178,26 @@ class SerialPortROSBridge:
         print "grideyeraw msg={}".format(grideyeMsg) 
         self.pubgrideyeraw.publish(grideyeMsg)
 
-    def doDetectionReturn(self,data,node,other):
-        imageId,signalStrength,detection,safe = struct.unpack_from('>IIBB',data, 0)
-        signalHistogram = struct.unpack_from('>10I', data, 10);
-            
-        receivedMsg = "[{0}] imageId={1} signalStrength=0x{2:04x} ({2}) detection={3} safe={4} signalHistogram={5} {6}".format(node,imageId,signalStrength,detection,safe,','.join(str(x) for x in signalHistogram), other)
-        print "{}".format(receivedMsg)
-            
-        if detection:
-            pubMsg = "[{}] imageId:{} threat:{} threatSignal:{}:{} {}\n".format(node,imageId,imageId,signalStrength,','.join(str(x) for x in signalHistogram),other)
-            self.pub.publish(pubMsg)
-        if safe:
-            pubMsg = "[{}] imageId:{} safe:{} {}\n".format(node,imageId,imageId,other)
-            self.pub.publish(pubMsg)    
+#    def doDetectionReturn(self,data,node,other):
+#        imageId,signalStrength,detection,safe = struct.unpack_from('>IIBB',data, 0)
+#        signalHistogram = struct.unpack_from('>10I', data, 10);
+#            
+#        receivedMsg = "[{0}] imageId={1} signalStrength=0x{2:04x} ({2}) detection={3} safe={4} signalHistogram={5} {6}".format(node,imageId,signalStrength,detection,safe,','.join(str(x) for x in signalHistogram), other)
+#        print "{}".format(receivedMsg)
+#            
+#        if detection:
+#            pubMsg = "[{}] imageId:{} threat:{} threatSignal:{}:{} {}\n".format(node,imageId,imageId,signalStrength,','.join(str(x) for x in signalHistogram),other)
+#            self.pub.publish(pubMsg)
+#        if safe:
+#            pubMsg = "[{}] imageId:{} safe:{} {}\n".format(node,imageId,imageId,other)
+#            self.pub.publish(pubMsg)    
 
     def doDetectionArrayReturn(self,data,node,other):
 #        print "data=".format(data)
-        imageId = struct.unpack_from('>I',data, 0)[0]
+        (collectionNum, frameNum, serialNum) = struct.unpack_from('>HHH',data, 0)
 #        print "imageId={}".format(imageId)
-        detection = struct.unpack_from('>9B',data, 4)
-        safe = struct.unpack_from('>9B',data, 13)
+        detection = struct.unpack_from('>9B',data, 6)
+        safe = struct.unpack_from('>9B',data, 15)
             
         bitMask = 1
         bitNum = 0
@@ -206,9 +210,20 @@ class SerialPortROSBridge:
                 detectBitList.append(i+1)
             if (safe[byteNum] & (1 << bitNum)):
                 safeBitList.append(i+1)
-
-        msg = "[{}] imageId:{} detectArray:{} safeArray:{} \n"\
-              .format(node,imageId,",".join(map(str,detectBitList)),",".join(map(str,safeBitList)))
+        threatCount = len(detectBitList)
+        threatCountDelta = threatCount - self.threatCount
+        if (len(detectBitList)==0):
+            detectBitStr = "0"
+        else:
+            detectBitStr = ",".join(map(str,detectBitList))
+        if (len(safeBitList)==0):
+            safeBitStr = "0"
+        else:
+            safeBitStr = ",".join(map(str,safeBitList))
+            
+        msg = "[{}] imageId:{} collectionNum:{} serialNum:{} detectArray:{} safeArray:{} threatCount:{} threat:{}\n"\
+              .format(node,frameNum,collectionNum,serialNum,detectBitStr,safeBitStr,threatCount,threatCountDelta)
+        self.threatCount = threatCount
         print msg
         pubMsg=String(msg)
         self.pub.publish(pubMsg)
@@ -263,6 +278,7 @@ class SerialPortROSBridge:
                 else:
                      print "no data"   
             except struct.error:
+                print "struct error"
                 pass
             rate.sleep()
             sys.stdout.flush()
